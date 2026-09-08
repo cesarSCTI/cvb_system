@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CVB | Registro de Expedientes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-logo">CV<span>B</span></div>
+        <div class="sidebar-nav">
+            <a href="dashboard.html">🏠 Inicio / Dashboard</a>
+            <a href="expediente-form.html" class="active">📁 Nuevo Expediente</a>
+            <a href="administracion.html">⚙ Administración</a>
+        </div>
+        <div class="sidebar-logout"><a href="#" id="btnLogout">↪ Cerrar Sesión</a></div>
+    </div>
+
+    <div class="main">
+        <div class="topbar">
+            <h1>Registro de Expedientes</h1>
+            <div class="topbar-user">
+                <span id="nombreUsuario">Cargando...</span>
+                <div class="avatar">👤</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+                <div>
+                    <h1 id="tituloForm" style="font-size:24px;margin:0 0 6px;">NUEVO EXPEDIENTE</h1>
+                    <p style="color:#6b7280;font-size:14px;margin:0 0 20px;max-width:640px;">
+                        Completa la información requerida para registrar un nuevo avalúo en el sistema.
+                        Los campos marcados con asterisco son obligatorios.
+                    </p>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-danger-outline" id="btnEliminar" style="display:none;">Eliminar</button>
+                    <button class="btn btn-primary" id="btnGuardar">💾 Guardar</button>
+                </div>
+            </div>
+
+            <div id="alertBox"></div>
+
+            <form id="formExpediente">
+                <div class="form-grid">
+                    <div>
+                        <div class="card form-section">
+                            <h3>💼 1. Datos Generales</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Folio Expediente *</label>
+                                    <input type="text" id="folio" placeholder="Exp-0000" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Notaría / Solicitante *</label>
+                                    <select id="notaria_id" required></select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Nombre del Cliente</label>
+                                <input type="text" id="nombre_cliente" placeholder="Nombre completo">
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo de Inmueble *</label>
+                                <select id="tipo_inmueble" required>
+                                    <option value="">Selecciona tipo...</option>
+                                    <option>Casa habitación</option>
+                                    <option>Departamento</option>
+                                    <option>Terreno</option>
+                                    <option>Comercial</option>
+                                    <option>Industrial</option>
+                                    <option>Oficina</option>
+                                    <option>Otro</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="card form-section">
+                            <h3>📍 2. Ubicación del Inmueble</h3>
+                            <div class="form-group">
+                                <label>Dirección Completa *</label>
+                                <input type="text" id="direccion" placeholder="Calle, número exterior e interior..." required>
+                            </div>
+                            <div class="form-row cols-3">
+                                <div class="form-group">
+                                    <label>Código Postal</label>
+                                    <input type="text" id="codigo_postal" placeholder="000000">
+                                </div>
+                                <div class="form-group">
+                                    <label>Municipio *</label>
+                                    <input type="text" id="municipio" placeholder="Ej. Zapopan" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Estado</label>
+                                    <select id="estado">
+                                        <option value="">Selecciona un estado</option>
+                                        <option>Jalisco</option><option>CDMX</option><option>Nuevo León</option>
+                                        <option>Estado de México</option><option>Querétaro</option><option>Otro</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="card form-section dark">
+                            <h3>🗓 3. Valores</h3>
+                            <div class="form-group">
+                                <label>Valor de Referencia</label>
+                                <input type="number" step="0.01" id="valor_referencia" placeholder="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label>Valor Resultante</label>
+                                <input type="number" step="0.01" id="valor_resultante" placeholder="0.00">
+                            </div>
+                        </div>
+
+                        <div class="card form-section teal">
+                            <h3>✅ 4. Progreso de Etapas</h3>
+                            <div class="form-group">
+                                <label>Fecha solicitud de valores</label>
+                                <input type="date" id="fecha_solicitud_valores">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha entrega de valores</label>
+                                <input type="date" id="fecha_entrega_valores">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha solicitud de ingreso</label>
+                                <input type="date" id="fecha_solicitud_ingreso">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de ingreso a catastro</label>
+                                <input type="date" id="fecha_ingreso_catastro">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha entrega a notaria</label>
+                                <input type="date" id="fecha_entrega_notaria">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card form-section">
+                    <h3>🔄 5. Control de Estatus y Avance</h3>
+                    <div class="checkboxes-row">
+                        <label><input type="checkbox" id="chkCotizacion" disabled> En cotización</label>
+                        <label><input type="checkbox" id="chkDesarrollo"> En desarrollo</label>
+                        <label><input type="checkbox" id="chkCatastro" disabled> En catastro</label>
+                        <label><input type="checkbox" id="chkEntregado" disabled> Entregado</label>
+                        <label><input type="checkbox" id="chkDetenido"> Expediente Detenido</label>
+                    </div>
+                    <p style="font-size:12px;color:#6b7280;margin:12px 0 0;">
+                        "En cotización", "En catastro" y "Entregado" se calculan automáticamente según las fechas capturadas.
+                        Usa "En desarrollo" para marcar que ya se solicitó el ingreso a catastro, y "Expediente Detenido" para pausar el seguimiento.
+                    </p>
+                </div>
+            </form>
+        </div>
+
+        <div class="footer-bar">© CVB 2026. Todos los derechos reservados.</div>
+    </div>
+</div>
+
+<script src="../assets/js/api.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const id = params.get('id');
+let notariaExistente = null;
+
+async function init() {
+    try {
+        const sesion = await Api.session();
+        if (!sesion.autenticado || sesion.usuario.rol !== 'admin') {
+            window.location.href = 'login.html';
+            return;
+        }
+        document.getElementById('nombreUsuario').textContent = sesion.usuario.nombre;
+    } catch (e) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    await cargarNotarias();
+
+    if (id) {
+        document.getElementById('tituloForm').textContent = 'EDITAR EXPEDIENTE';
+        document.getElementById('btnEliminar').style.display = 'inline-flex';
+        await cargarExpediente();
+    }
+
+    actualizarChecksAuto();
+}
+
+async function cargarNotarias() {
+    const { data } = await Api.listarNotarias();
+    const select = document.getElementById('notaria_id');
+    select.innerHTML = data.map(n => `<option value="${n.id}">${n.nombre}</option>`).join('');
+}
+
+async function cargarExpediente() {
+    try {
+        const { data: e } = await Api.obtenerExpediente(id);
+        document.getElementById('folio').value = e.folio;
+        document.getElementById('notaria_id').value = e.notaria_id;
+        document.getElementById('nombre_cliente').value = e.nombre_cliente || '';
+        document.getElementById('tipo_inmueble').value = e.tipo_inmueble || '';
+        document.getElementById('direccion').value = e.direccion || '';
+        document.getElementById('codigo_postal').value = e.codigo_postal || '';
+        document.getElementById('municipio').value = e.municipio || '';
+        document.getElementById('estado').value = e.estado || '';
+        document.getElementById('valor_referencia').value = e.valor_referencia || '';
+        document.getElementById('valor_resultante').value = e.valor_resultante || '';
+        document.getElementById('fecha_solicitud_valores').value = e.fecha_solicitud_valores || '';
+        document.getElementById('fecha_entrega_valores').value = e.fecha_entrega_valores || '';
+        document.getElementById('fecha_solicitud_ingreso').value = e.fecha_solicitud_ingreso || '';
+        document.getElementById('fecha_ingreso_catastro').value = e.fecha_ingreso_catastro || '';
+        document.getElementById('fecha_entrega_notaria').value = e.fecha_entrega_notaria || '';
+        document.getElementById('chkDesarrollo').checked = !!e.solicitud_ingreso_check;
+        document.getElementById('chkDetenido').checked = e.estatus_manual === 'Detenido';
+
+        window._estatusActual = e.estatus;
+        actualizarChecksAuto();
+    } catch (err) {
+        mostrarAlerta(err.error || 'No se pudo cargar el expediente.', 'error');
+    }
+}
+
+function actualizarChecksAuto() {
+    const estatus = window._estatusActual || 'En Cotización';
+    document.getElementById('chkCotizacion').checked = estatus === 'En Cotización';
+    document.getElementById('chkCatastro').checked = estatus === 'En Catastro';
+    document.getElementById('chkEntregado').checked = estatus === 'Entregado';
+}
+
+function mostrarAlerta(msg, tipo) {
+    document.getElementById('alertBox').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+}
+
+function recopilarDatos() {
+    return {
+        folio: document.getElementById('folio').value.trim(),
+        notaria_id: parseInt(document.getElementById('notaria_id').value),
+        nombre_cliente: document.getElementById('nombre_cliente').value.trim(),
+        tipo_inmueble: document.getElementById('tipo_inmueble').value,
+        direccion: document.getElementById('direccion').value.trim(),
+        codigo_postal: document.getElementById('codigo_postal').value.trim(),
+        municipio: document.getElementById('municipio').value.trim(),
+        estado: document.getElementById('estado').value,
+        valor_referencia: document.getElementById('valor_referencia').value || null,
+        valor_resultante: document.getElementById('valor_resultante').value || null,
+        fecha_solicitud_valores: document.getElementById('fecha_solicitud_valores').value || null,
+        fecha_entrega_valores: document.getElementById('fecha_entrega_valores').value || null,
+        solicitud_ingreso_check: document.getElementById('chkDesarrollo').checked ? 1 : 0,
+        fecha_solicitud_ingreso: document.getElementById('fecha_solicitud_ingreso').value || null,
+        fecha_ingreso_catastro: document.getElementById('fecha_ingreso_catastro').value || null,
+        fecha_entrega_notaria: document.getElementById('fecha_entrega_notaria').value || null,
+        estatus_manual: document.getElementById('chkDetenido').checked ? 'Detenido' : '',
+    };
+}
+
+document.getElementById('btnGuardar').addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!document.getElementById('formExpediente').reportValidity()) return;
+
+    const payload = recopilarDatos();
+    try {
+        if (id) {
+            await Api.actualizarExpediente(id, payload);
+            mostrarAlerta('Expediente actualizado correctamente.', 'success');
+        } else {
+            const res = await Api.crearExpediente(payload);
+            mostrarAlerta('Expediente creado correctamente.', 'success');
+            setTimeout(() => window.location.href = `expediente-form.html?id=${res.id}`, 700);
+        }
+    } catch (err) {
+        mostrarAlerta(err.error || 'No se pudo guardar el expediente.', 'error');
+    }
+});
+
+document.getElementById('btnEliminar').addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!confirm('¿Eliminar este expediente? Esta acción no se puede deshacer.')) return;
+    try {
+        await Api.eliminarExpediente(id);
+        window.location.href = 'dashboard.html';
+    } catch (err) {
+        mostrarAlerta(err.error || 'No se pudo eliminar.', 'error');
+    }
+});
+
+document.getElementById('btnLogout').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await Api.logout();
+    window.location.href = 'login.html';
+});
+
+init();
+</script>
+</body>
+</html>

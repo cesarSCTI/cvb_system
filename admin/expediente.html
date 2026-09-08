@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CVB | Registro de Expedientes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-logo">CV<span>B</span></div>
+        <div class="sidebar-nav">
+            <a href="dashboard.html">🏠 Inicio / Dashboard</a>
+            <a href="expediente-form.html">📁 Nuevo Expediente</a>
+            <a href="administracion.html">⚙ Administración</a>
+        </div>
+        <div class="sidebar-logout"><a href="#" id="btnLogout">↪ Cerrar Sesión</a></div>
+    </div>
+
+    <div class="main">
+        <div class="topbar">
+            <h1>Registro de Expedientes</h1>
+            <div class="topbar-user">
+                <span id="nombreUsuario">Cargando...</span>
+                <div class="avatar">👤</div>
+            </div>
+        </div>
+
+        <div class="content" id="contenido">
+            <p class="empty-state">Cargando expediente...</p>
+        </div>
+
+        <div class="footer-bar">© CVB 2026. Todos los derechos reservados.</div>
+    </div>
+</div>
+
+<script src="../assets/js/api.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const id = params.get('id');
+
+async function init() {
+    try {
+        const sesion = await Api.session();
+        if (!sesion.autenticado || sesion.usuario.rol !== 'admin') {
+            window.location.href = 'login.html';
+            return;
+        }
+        document.getElementById('nombreUsuario').textContent = sesion.usuario.nombre;
+    } catch (e) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    if (!id) {
+        document.getElementById('contenido').innerHTML = '<p class="empty-state">Expediente no especificado.</p>';
+        return;
+    }
+
+    try {
+        const { data: e } = await Api.obtenerExpediente(id);
+        render(e);
+    } catch (err) {
+        document.getElementById('contenido').innerHTML = `<p class="empty-state">${err.error || 'No se pudo cargar el expediente.'}</p>`;
+    }
+}
+
+function stepClassIdx(idx, actual) {
+    if (idx < actual) return 'done';
+    if (idx === actual) return 'current';
+    return '';
+}
+
+function render(e) {
+    const pasos = [
+        { icon: '📝', label: 'En cotización' },
+        { icon: '📋', label: 'En desarrollo' },
+        { icon: '🏛', label: 'En catastro' },
+        { icon: '✔', label: 'Entregado' },
+    ];
+    const progressHtml = pasos.map((p, idx) => {
+        const cls = stepClassIdx(idx, e.paso_progreso);
+        const lineCls = idx < e.paso_progreso ? 'done' : '';
+        return `<div class="progress-step ${cls}">
+                    <div class="progress-line ${lineCls}"></div>
+                    <div class="icon">${p.icon}</div>
+                    <div class="label">${p.label}</div>
+                </div>`;
+    }).join('');
+
+    const diasTotales = (e.etapa1 || 0) + (e.etapa2 || 0) + (e.etapa3 || 0);
+    const direccionCompleta = `${e.direccion}, ${e.municipio || ''}, ${e.estado || ''}`;
+    const mapaSrc = `https://www.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&output=embed`;
+
+    document.getElementById('contenido').innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h1 style="font-size:26px;margin:0;">${e.folio}</h1>
+            <a class="btn btn-primary" href="expediente-form.html?id=${e.id}">✏ Editar Expediente</a>
+        </div>
+
+        <div class="card card-pad" style="margin-bottom:18px;">
+            <h3 style="margin:0 0 16px;">Progreso del Avalúo</h3>
+            <div class="progress-track">${progressHtml}</div>
+        </div>
+
+        <div class="detail-grid">
+            <div>
+                <div class="card info-card" style="margin-bottom:16px;">
+                    <h3>📄 Información General</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div class="info-item"><div class="k">Notaría / Solicitante</div><div class="v">${e.notaria_nombre}</div></div>
+                        <div class="info-item"><div class="k">Tipo de Inmueble</div><div class="v">${e.tipo_inmueble || 'N/A'}</div></div>
+                        <div class="info-item"><div class="k">Nombre del Cliente</div><div class="v">${e.nombre_cliente || 'N/A'}</div></div>
+                    </div>
+                    <div class="info-item"><div class="k">Dirección del Inmueble</div><div class="v">📍 ${e.direccion}, ${e.municipio || ''}${e.estado ? ', ' + e.estado : ''}</div></div>
+                </div>
+
+                <div class="dark-card" style="margin-bottom:16px;">
+                    <h3>💳 Valores</h3>
+                    <div class="value-label">Valor de Referencia</div>
+                    <div class="value-big">${formatCurrency(e.valor_referencia)}</div>
+                    <div class="divider"></div>
+                    <div class="value-label">Valor Resultante</div>
+                    <div class="value-big">${formatCurrency(e.valor_resultante)}</div>
+                </div>
+
+                <div class="card" style="overflow:hidden;">
+                    <iframe src="${mapaSrc}" width="100%" height="260" style="border:0;display:block;" loading="lazy"></iframe>
+                </div>
+            </div>
+
+            <div class="teal-card">
+                <h3>⏱ Tiempos de Respuesta</h3>
+                <div class="teal-days">${diasTotales} DÍAS</div>
+                <div class="teal-sub">Transcurridos</div>
+                <div class="stage-row">
+                    <div class="stage-top"><span>Etapa 1 - Cvb→Notaría</span><span class="stage-pill">${formatDias(e.etapa1)}</span></div>
+                    <div class="stage-track"><div class="stage-fill" style="width:${e.etapa1?100:0}%"></div></div>
+                </div>
+                <div class="stage-row">
+                    <div class="stage-top"><span>Etapa 2 - Desarrollo Cvb → Catastro</span><span class="stage-pill">${formatDias(e.etapa2)}</span></div>
+                    <div class="stage-track"><div class="stage-fill" style="width:${e.etapa2?100:0}%"></div></div>
+                </div>
+                <div class="stage-row">
+                    <div class="stage-top"><span>Etapa 3 - Catastro → Notaría</span><span class="stage-pill">${formatDias(e.etapa3)}</span></div>
+                    <div class="stage-track"><div class="stage-fill" style="width:${e.etapa3?100:0}%"></div></div>
+                </div>
+            </div>
+
+            <div class="card info-card">
+                <h3>🗓 Fechas de Seguimiento</h3>
+                <div class="info-item"><div class="k">Fecha solicitud de valores</div><div class="v">${formatFecha(e.fecha_solicitud_valores)}</div></div>
+                <div class="info-item"><div class="k">Fecha entrega de valores</div><div class="v">${formatFecha(e.fecha_entrega_valores)}</div></div>
+                <div class="info-item"><div class="k">Fecha solicitud de ingreso</div><div class="v">${formatFecha(e.fecha_solicitud_ingreso)}</div></div>
+                <div class="info-item"><div class="k">Fecha de ingreso a catastro</div><div class="v">${formatFecha(e.fecha_ingreso_catastro)}</div></div>
+                <div class="info-item"><div class="k">Fecha entrega a notaria</div><div class="v">${formatFecha(e.fecha_entrega_notaria)}</div></div>
+            </div>
+        </div>
+    `;
+}
+
+document.getElementById('btnLogout').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await Api.logout();
+    window.location.href = 'login.html';
+});
+
+init();
+</script>
+</body>
+</html>

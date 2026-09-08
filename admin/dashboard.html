@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CVB | Admin - Listado de Expedientes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-logo">CV<span>B</span></div>
+        <div class="sidebar-nav">
+            <a href="dashboard.html" class="active">🏠 Inicio / Dashboard</a>
+            <a href="expediente-form.html">📁 Nuevo Expediente</a>
+            <a href="administracion.html">⚙ Administración</a>
+        </div>
+        <div class="sidebar-logout"><a href="#" id="btnLogout">↪ Cerrar Sesión</a></div>
+    </div>
+
+    <div class="main">
+        <div class="topbar">
+            <h1>Listado de Expedientes</h1>
+            <div class="topbar-user">
+                <span id="nombreUsuario">Cargando...</span>
+                <div class="avatar">👤</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="kpi-card"><div class="dot" style="background:#333"></div><div class="value">-</div><div class="label">Expedientes totales</div></div>
+                <div class="kpi-card"><div class="dot" style="background:#1f9d55"></div><div class="value">-</div><div class="label">Entregados</div></div>
+                <div class="kpi-card"><div class="dot" style="background:#d98a1f"></div><div class="value">-</div><div class="label">En cotización</div></div>
+                <div class="kpi-card"><div class="dot" style="background:#1e3a5f"></div><div class="value">-</div><div class="label">En catastro</div></div>
+                <div class="kpi-card"><div class="dot" style="background:#8e44ad"></div><div class="value">-</div><div class="label">En desarrollo</div></div>
+                <div class="kpi-card"><div class="dot" style="background:#d1433f"></div><div class="value">-</div><div class="label">Detenidos</div></div>
+            </div>
+
+            <div class="card">
+                <div style="padding:18px 18px 0;">
+                    <div class="toolbar">
+                        <div class="search-input"><input type="text" id="buscar" placeholder="Buscar por folio, solicitante o municipio..."></div>
+                        <select id="filtroEstatus">
+                            <option value="">Filtro: Todos</option>
+                            <option value="En Cotización">En cotización</option>
+                            <option value="En Desarrollo">En desarrollo</option>
+                            <option value="En Catastro">En catastro</option>
+                            <option value="Entregado">Entregado</option>
+                            <option value="Pagado">Pagado</option>
+                            <option value="Detenido">Detenido</option>
+                        </select>
+                        <a href="expediente-form.html" class="btn btn-primary" style="white-space:nowrap;">+ Nuevo</a>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Estatus</th><th>Folio</th><th>Notaría/Solicitante</th>
+                            <th>Etapa 1</th><th>Etapa 2</th><th>Etapa 3</th><th>Municipio</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaBody">
+                        <tr><td colspan="8" class="empty-state">Cargando expedientes...</td></tr>
+                    </tbody>
+                </table>
+                <div class="table-footer">
+                    <div id="resumenPaginacion">Mostrando 0 de 0 expedientes</div>
+                    <div class="pagination" id="paginacion"></div>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="card card-pad chart-card">
+                    <h3>Días promedio por etapa</h3>
+                    <div id="barsDias"></div>
+                </div>
+                <div class="card card-pad chart-card">
+                    <h3>Distribución por estatus</h3>
+                    <div style="display:flex;align-items:center;gap:24px;justify-content:center;">
+                        <div id="pieChart" style="width:150px;height:150px;border-radius:50%;flex-shrink:0;"></div>
+                        <div id="pieLegend" style="font-size:13px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bar">© CVB 2026. Todos los derechos reservados.</div>
+    </div>
+</div>
+
+<script src="../assets/js/api.js"></script>
+<script>
+let paginaActual = 1;
+const PER_PAGE = 10;
+let timeoutBusqueda = null;
+
+const COLORS = {
+    'Entregado': '#1f9d55',
+    'En Cotización': '#d98a1f',
+    'En Catastro': '#1e3a5f',
+    'En Desarrollo': '#8e44ad',
+    'Detenido': '#d1433f',
+    'Pagado': '#14a89a',
+};
+
+async function init() {
+    try {
+        const sesion = await Api.session();
+        if (!sesion.autenticado || sesion.usuario.rol !== 'admin') {
+            window.location.href = 'login.html';
+            return;
+        }
+        document.getElementById('nombreUsuario').textContent = sesion.usuario.nombre;
+    } catch (e) {
+        window.location.href = 'login.html';
+        return;
+    }
+    cargarStats();
+    cargarExpedientes();
+}
+
+async function cargarStats() {
+    try {
+        const s = await Api.dashboardStats();
+        const cards = document.querySelectorAll('#kpiGrid .kpi-card .value');
+        cards[0].textContent = s.total;
+        cards[1].textContent = s.entregados;
+        cards[2].textContent = s.cotizacion;
+        cards[3].textContent = s.catastro;
+        cards[4].textContent = s.desarrollo;
+        cards[5].textContent = s.detenidos;
+
+        const maxDias = Math.max(s.dias_promedio.etapa1, s.dias_promedio.etapa2, s.dias_promedio.etapa3, 1);
+        document.getElementById('barsDias').innerHTML = `
+            ${barRow('Etapa 1 - Cvb→Notaría', s.dias_promedio.etapa1, maxDias)}
+            ${barRow('Etapa 2 - Desarrollo Cvb → Catastro', s.dias_promedio.etapa2, maxDias)}
+            ${barRow('Etapa 3 - Catastro → Notaría', s.dias_promedio.etapa3, maxDias)}
+        `;
+
+        renderPie(s.distribucion_estatus);
+    } catch (e) { /* silencioso */ }
+}
+
+function barRow(label, valor, max) {
+    const pct = Math.min(100, (valor / max) * 100);
+    return `<div class="bar-row">
+                <div class="bar-label">${label}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+                <div class="bar-value">${valor}</div>
+            </div>`;
+}
+
+function renderPie(dist) {
+    const entries = Object.entries(dist).filter(([, v]) => v > 0);
+    const total = entries.reduce((a, [, v]) => a + v, 0) || 1;
+    let acc = 0;
+    const stops = entries.map(([k, v]) => {
+        const start = (acc / total) * 360;
+        acc += v;
+        const end = (acc / total) * 360;
+        return `${COLORS[k] || '#999'} ${start}deg ${end}deg`;
+    });
+    document.getElementById('pieChart').style.background = `conic-gradient(${stops.join(',')})`;
+
+    document.getElementById('pieLegend').innerHTML = entries.map(([k, v]) => `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:${COLORS[k] || '#999'};display:inline-block;"></span>
+            <span>${k}</span><strong style="margin-left:auto;">${v}</strong>
+        </div>
+    `).join('');
+}
+
+async function cargarExpedientes() {
+    const q = document.getElementById('buscar').value.trim();
+    const estatus = document.getElementById('filtroEstatus').value;
+    const tbody = document.getElementById('tablaBody');
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Cargando...</td></tr>';
+
+    try {
+        const { data, meta } = await Api.listarExpedientes({ page: paginaActual, per_page: PER_PAGE, q, estatus });
+        renderTabla(data);
+        renderPaginacion(meta);
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${e.error || 'Error al cargar expedientes.'}</td></tr>`;
+    }
+}
+
+function renderTabla(data) {
+    const tbody = document.getElementById('tablaBody');
+    if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No se encontraron expedientes.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map(e => `
+        <tr>
+            <td><span class="badge ${e.estatus_badge}">${e.estatus}</span></td>
+            <td><a class="folio-link" href="expediente.html?id=${e.id}">${e.folio}</a></td>
+            <td>${e.notaria_nombre}</td>
+            <td>${formatDias(e.etapa1)}</td>
+            <td>${formatDias(e.etapa2)}</td>
+            <td>${formatDias(e.etapa3)}</td>
+            <td>${e.municipio || '-'}</td>
+            <td>
+                <a href="expediente-form.html?id=${e.id}" title="Editar">✏</a>
+                &nbsp;
+                <a href="#" title="Eliminar" onclick="eliminar(event, ${e.id})">🗑</a>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function eliminar(ev, id) {
+    ev.preventDefault();
+    if (!confirm('¿Eliminar este expediente? Esta acción no se puede deshacer.')) return;
+    try {
+        await Api.eliminarExpediente(id);
+        cargarExpedientes();
+        cargarStats();
+    } catch (e) {
+        alert(e.error || 'No se pudo eliminar.');
+    }
+}
+
+function renderPaginacion(meta) {
+    document.getElementById('resumenPaginacion').textContent =
+        `Mostrando los ${Math.min(meta.per_page, meta.total - (meta.page-1)*meta.per_page)} de ${meta.total} expedientes`;
+    const cont = document.getElementById('paginacion');
+    let html = `<button ${meta.page<=1?'disabled':''} onclick="cambiarPagina(${meta.page-1})">‹</button>`;
+    for (let i = 1; i <= meta.total_paginas; i++) {
+        if (i === 1 || i === meta.total_paginas || Math.abs(i - meta.page) <= 1) {
+            html += `<button class="${i===meta.page?'active':''}" onclick="cambiarPagina(${i})">${i}</button>`;
+        } else if (Math.abs(i - meta.page) === 2) {
+            html += `<span>…</span>`;
+        }
+    }
+    html += `<button ${meta.page>=meta.total_paginas?'disabled':''} onclick="cambiarPagina(${meta.page+1})">›</button>`;
+    cont.innerHTML = html;
+}
+
+function cambiarPagina(p) {
+    if (p < 1) return;
+    paginaActual = p;
+    cargarExpedientes();
+}
+
+document.getElementById('buscar').addEventListener('input', () => {
+    clearTimeout(timeoutBusqueda);
+    timeoutBusqueda = setTimeout(() => { paginaActual = 1; cargarExpedientes(); }, 350);
+});
+document.getElementById('filtroEstatus').addEventListener('change', () => { paginaActual = 1; cargarExpedientes(); });
+
+document.getElementById('btnLogout').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await Api.logout();
+    window.location.href = 'login.html';
+});
+
+init();
+</script>
+</body>
+</html>

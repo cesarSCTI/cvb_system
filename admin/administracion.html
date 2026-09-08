@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CVB | Administración</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-logo">CV<span>B</span></div>
+        <div class="sidebar-nav">
+            <a href="dashboard.html">🏠 Inicio / Dashboard</a>
+            <a href="expediente-form.html">📁 Nuevo Expediente</a>
+            <a href="administracion.html" class="active">⚙ Administración</a>
+        </div>
+        <div class="sidebar-logout"><a href="#" id="btnLogout">↪ Cerrar Sesión</a></div>
+    </div>
+
+    <div class="main">
+        <div class="topbar">
+            <h1>Administración</h1>
+            <div class="topbar-user">
+                <span id="nombreUsuario">Cargando...</span>
+                <div class="avatar">👤</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="card card-pad" style="max-width:600px;margin-bottom:20px;">
+                <h3 style="margin-top:0;">Notarías / Solicitantes</h3>
+                <div id="alertBox"></div>
+                <div style="display:flex;gap:10px;margin-bottom:18px;">
+                    <input type="text" id="nuevaNotaria" placeholder="Nombre de la notaría (ej. Lic. Fernanda)" style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--gray-border);">
+                    <button class="btn btn-primary" id="btnAgregar">+ Agregar</button>
+                </div>
+                <table>
+                    <thead><tr><th>Notaría</th></tr></thead>
+                    <tbody id="listaNotarias"><tr><td class="empty-state">Cargando...</td></tr></tbody>
+                </table>
+            </div>
+            <p style="color:#6b7280;font-size:13px;max-width:600px;">
+                Nota: para crear el usuario de acceso al portal cliente de una nueva notaría,
+                agrégalo directamente en la tabla <code>usuarios</code> con <code>rol='cliente'</code>
+                y el <code>notaria_id</code> correspondiente (ver <code>database/seed_usuarios.sql</code> como referencia).
+            </p>
+        </div>
+
+        <div class="footer-bar">© CVB 2026. Todos los derechos reservados.</div>
+    </div>
+</div>
+
+<script src="../assets/js/api.js"></script>
+<script>
+async function init() {
+    try {
+        const sesion = await Api.session();
+        if (!sesion.autenticado || sesion.usuario.rol !== 'admin') {
+            window.location.href = 'login.html';
+            return;
+        }
+        document.getElementById('nombreUsuario').textContent = sesion.usuario.nombre;
+    } catch (e) {
+        window.location.href = 'login.html';
+        return;
+    }
+    cargarNotarias();
+}
+
+async function cargarNotarias() {
+    const { data } = await Api.listarNotarias();
+    document.getElementById('listaNotarias').innerHTML = data.map(n => `<tr><td>${n.nombre}</td></tr>`).join('');
+}
+
+document.getElementById('btnAgregar').addEventListener('click', async () => {
+    const input = document.getElementById('nuevaNotaria');
+    const nombre = input.value.trim();
+    if (!nombre) return;
+    try {
+        await fetch('../api/notarias.php', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre }),
+        });
+        input.value = '';
+        cargarNotarias();
+        document.getElementById('alertBox').innerHTML = '<div class="alert alert-success">Notaría agregada.</div>';
+    } catch (e) {
+        document.getElementById('alertBox').innerHTML = '<div class="alert alert-error">No se pudo agregar.</div>';
+    }
+});
+
+document.getElementById('btnLogout').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await Api.logout();
+    window.location.href = 'login.html';
+});
+
+init();
+</script>
+</body>
+</html>

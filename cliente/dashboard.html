@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CVB | Listado de Expedientes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<div class="main" style="min-height:100vh;">
+    <div class="topbar">
+        <h1>Listado de Expedientes</h1>
+        <div class="topbar-user">
+            <div style="text-align:right;">
+                <div id="nombreUsuario">Cargando...</div>
+                <a href="#" class="logout-link" id="btnLogout">↪ Cerrar Sesión</a>
+            </div>
+            <div class="avatar">👤</div>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="hero-card card card-pad">
+            <div>
+                <span class="hero-tag">PORTAL CLIENTE</span>
+                <h2 id="nombreNotaria">Notaría</h2>
+                <p>Consulta en tiempo real el estatus de los expedientes vinculados a su notaría.
+                   Los tiempos de entrega estimados se actualizan automáticamente según la etapa correspondiente.</p>
+            </div>
+            <div class="hero-stat">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;">Expedientes activos</div>
+                    <div class="hero-stat-value" id="statActivos">-</div>
+                    <div style="font-size:12px;color:#6b7280;">en proceso</div>
+                </div>
+                <div class="hero-stat-icon">📁</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="padding:18px 18px 0;">
+                <div class="toolbar">
+                    <div class="search-input"><input type="text" id="buscar" placeholder="Buscar por folio, estatus o municipio..."></div>
+                    <select id="filtroEstatus">
+                        <option value="">Filtro: Todos</option>
+                        <option value="En Cotización">En cotización</option>
+                        <option value="En Desarrollo">En desarrollo</option>
+                        <option value="En Catastro">En catastro</option>
+                        <option value="Entregado">Entregado</option>
+                        <option value="Pagado">Pagado</option>
+                        <option value="Detenido">Detenido</option>
+                    </select>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Estatus</th><th>Folio</th><th>Etapa 1</th><th>Etapa 2</th><th>Etapa 3</th><th>Municipio</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaBody">
+                    <tr><td colspan="6" class="empty-state">Cargando expedientes...</td></tr>
+                </tbody>
+            </table>
+            <div class="table-footer">
+                <div id="resumenPaginacion">Mostrando 0 de 0 expedientes</div>
+                <div class="pagination" id="paginacion"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-bar">© CVB 2026. Todos los derechos reservados.</div>
+</div>
+
+<script src="../assets/js/api.js"></script>
+<script>
+let paginaActual = 1;
+const PER_PAGE = 10;
+let timeoutBusqueda = null;
+
+async function init() {
+    try {
+        const sesion = await Api.session();
+        if (!sesion.autenticado || sesion.usuario.rol !== 'cliente') {
+            window.location.href = 'login.html';
+            return;
+        }
+        document.getElementById('nombreUsuario').textContent = sesion.usuario.nombre;
+        document.getElementById('nombreNotaria').textContent = sesion.usuario.nombre.toUpperCase();
+    } catch (e) {
+        window.location.href = 'login.html';
+        return;
+    }
+    cargarExpedientes();
+}
+
+async function cargarExpedientes() {
+    const q = document.getElementById('buscar').value.trim();
+    const estatus = document.getElementById('filtroEstatus').value;
+
+    const tbody = document.getElementById('tablaBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Cargando...</td></tr>';
+
+    try {
+        const { data, meta } = await Api.listarExpedientes({ page: paginaActual, per_page: PER_PAGE, q, estatus });
+        renderTabla(data);
+        renderPaginacion(meta);
+        document.getElementById('statActivos').textContent = meta.total;
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${e.error || 'Error al cargar expedientes.'}</td></tr>`;
+    }
+}
+
+function renderTabla(data) {
+    const tbody = document.getElementById('tablaBody');
+    if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No se encontraron expedientes.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map(e => `
+        <tr>
+            <td><span class="badge ${e.estatus_badge}">${e.estatus}</span></td>
+            <td><a class="folio-link" href="expediente.html?id=${e.id}">${e.folio}</a></td>
+            <td>${formatDias(e.etapa1)}</td>
+            <td>${formatDias(e.etapa2)}</td>
+            <td>${formatDias(e.etapa3)}</td>
+            <td>${e.municipio || '-'}</td>
+        </tr>
+    `).join('');
+}
+
+function renderPaginacion(meta) {
+    document.getElementById('resumenPaginacion').textContent =
+        `Mostrando los ${Math.min(meta.per_page, meta.total - (meta.page-1)*meta.per_page)} de ${meta.total} expedientes`;
+
+    const cont = document.getElementById('paginacion');
+    let html = `<button ${meta.page<=1?'disabled':''} onclick="cambiarPagina(${meta.page-1})">‹</button>`;
+    for (let i = 1; i <= meta.total_paginas; i++) {
+        if (i === 1 || i === meta.total_paginas || Math.abs(i - meta.page) <= 1) {
+            html += `<button class="${i===meta.page?'active':''}" onclick="cambiarPagina(${i})">${i}</button>`;
+        } else if (Math.abs(i - meta.page) === 2) {
+            html += `<span>…</span>`;
+        }
+    }
+    html += `<button ${meta.page>=meta.total_paginas?'disabled':''} onclick="cambiarPagina(${meta.page+1})">›</button>`;
+    cont.innerHTML = html;
+}
+
+function cambiarPagina(p) {
+    if (p < 1) return;
+    paginaActual = p;
+    cargarExpedientes();
+}
+
+document.getElementById('buscar').addEventListener('input', () => {
+    clearTimeout(timeoutBusqueda);
+    timeoutBusqueda = setTimeout(() => { paginaActual = 1; cargarExpedientes(); }, 350);
+});
+document.getElementById('filtroEstatus').addEventListener('change', () => { paginaActual = 1; cargarExpedientes(); });
+
+document.getElementById('btnLogout').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await Api.logout();
+    window.location.href = 'login.html';
+});
+
+init();
+</script>
+</body>
+</html>

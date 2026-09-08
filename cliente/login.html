@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CVB | Portal Cliente</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="login-page">
+    <div class="login-box">
+        <div class="login-logo">CV<span>B</span></div>
+        <div class="login-title">¡Bienvenido!</div>
+        <div class="login-subtitle">
+            Inicia sesión para acceder al panel de expedientes<br>
+            con tu usuario y contraseña proporcionados.
+        </div>
+
+        <div class="login-card">
+            <div class="login-error" id="loginError"></div>
+            <form id="formLogin">
+                <div class="form-group">
+                    <label for="usuario">Usuario</label>
+                    <input type="text" id="usuario" placeholder="notaria1" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <div class="password-wrap">
+                        <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+                        <button type="button" id="togglePass">👁</button>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btnEntrar">Entrar</button>
+            </form>
+            <div class="login-footer">🔒 Conexión cifrada de extremo a extremo</div>
+        </div>
+    </div>
+
+<script src="../assets/js/api.js"></script>
+<script>
+document.getElementById('togglePass').addEventListener('click', () => {
+    const input = document.getElementById('password');
+    input.type = input.type === 'password' ? 'text' : 'password';
+});
+
+document.getElementById('formLogin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const usuario = document.getElementById('usuario').value.trim();
+    const password = document.getElementById('password').value;
+    const errBox = document.getElementById('loginError');
+    const btn = document.getElementById('btnEntrar');
+    errBox.style.display = 'none';
+    btn.textContent = 'Entrando...';
+    btn.disabled = true;
+
+    try {
+        await Api.login('cliente', usuario, password);
+        window.location.href = 'dashboard.html';
+    } catch (err) {
+        errBox.textContent = err?.error || 'No se pudo iniciar sesión.';
+        errBox.style.display = 'block';
+        btn.textContent = 'Entrar';
+        btn.disabled = false;
+    }
+});
+</script>
+</body>
+</html>

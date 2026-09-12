@@ -4,6 +4,29 @@
  */
 const API_BASE = '/api';
 
+/**
+ * Caché ligero en sessionStorage para pintar al instante datos ya vistos
+ * (patrón stale-while-revalidate). Se limpia solo al cerrar la pestaña
+ * o tras cualquier operación de escritura (ver Api.*).
+ */
+const ApiCache = {
+    _k: (k) => 'cvb:cache:' + k,
+    get(k) {
+        try { const v = sessionStorage.getItem(this._k(k)); return v ? JSON.parse(v) : null; }
+        catch (e) { return null; }
+    },
+    set(k, v) {
+        try { sessionStorage.setItem(this._k(k), JSON.stringify(v)); } catch (e) { /* cuota / modo privado */ }
+    },
+    clear() {
+        try {
+            Object.keys(sessionStorage)
+                .filter(k => k.startsWith('cvb:cache:'))
+                .forEach(k => sessionStorage.removeItem(k));
+        } catch (e) { /* noop */ }
+    },
+};
+
 async function apiRequest(path, options = {}) {
     const res = await fetch(`${API_BASE}/${path}`, {
         credentials: 'include',
@@ -48,18 +71,42 @@ const Api = {
     obtenerExpediente: (id) => apiRequest(`expedientes.php?id=${id}`),
 
     crearExpediente: (payload) =>
-        apiRequest('expedientes.php', { method: 'POST', body: JSON.stringify(payload) }),
+        mutar(apiRequest('expedientes.php', { method: 'POST', body: JSON.stringify(payload) })),
 
     actualizarExpediente: (id, payload) =>
-        apiRequest(`expedientes.php?id=${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+        mutar(apiRequest(`expedientes.php?id=${id}`, { method: 'PUT', body: JSON.stringify(payload) })),
 
     eliminarExpediente: (id) =>
-        apiRequest(`expedientes.php?id=${id}`, { method: 'DELETE' }),
+        mutar(apiRequest(`expedientes.php?id=${id}`, { method: 'DELETE' })),
 
     listarNotarias: () => apiRequest('notarias.php'),
 
+    listarNotariasAdmin: () => apiRequest('notarias.php?todas=1'),
+
+    crearNotaria: (payload) =>
+        mutar(apiRequest('notarias.php', {
+            method: 'POST',
+            body: JSON.stringify(typeof payload === 'string' ? { nombre: payload } : payload),
+        })),
+
+    actualizarNotaria: (id, payload) =>
+        mutar(apiRequest(`notarias.php?id=${id}`, { method: 'PUT', body: JSON.stringify(payload) })),
+
+    eliminarNotaria: (id) =>
+        mutar(apiRequest(`notarias.php?id=${id}`, { method: 'DELETE' })),
+
     dashboardStats: () => apiRequest('dashboard_stats.php'),
+
+    perfil: () => apiRequest('perfil.php'),
+
+    actualizarPerfil: (payload) =>
+        mutar(apiRequest('perfil.php', { method: 'PUT', body: JSON.stringify(payload) })),
 };
+
+/** Invalida el caché cuando una escritura tiene éxito. */
+function mutar(promesa) {
+    return promesa.then((r) => { ApiCache.clear(); return r; });
+}
 
 /** Formatea un número como moneda MXN. */
 function formatCurrency(valor) {

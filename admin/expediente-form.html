@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <title>CVB | Registro de Expedientes</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="../assets/logoCVB.png">
 <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
 <div class="app">
     <div class="sidebar">
-        <div class="sidebar-logo">CV<span>B</span></div>
+        <div class="sidebar-logo"><img src="../assets/logoCVB.png" alt="CVB"></div>
         <div class="sidebar-nav">
             <a href="dashboard.html">🏠 Inicio / Dashboard</a>
             <a href="expediente-form.html" class="active">📁 Nuevo Expediente</a>
@@ -55,8 +56,12 @@
                                     <input type="text" id="folio" placeholder="Exp-0000" required>
                                 </div>
                                 <div class="form-group">
-                                    <label>Notaría / Solicitante *</label>
-                                    <select id="notaria_id" required></select>
+                                    <label for="notaria_search">Notaría / Solicitante *</label>
+                                    <div class="combobox" id="notariaCombo">
+                                        <input type="text" id="notaria_search" placeholder="Escribe para buscar..." autocomplete="off" role="combobox" aria-expanded="false" aria-controls="notaria_list" required>
+                                        <input type="hidden" id="notaria_id">
+                                        <ul class="combobox-list" id="notaria_list" role="listbox" hidden></ul>
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -94,12 +99,12 @@
                                     <input type="text" id="municipio" placeholder="Ej. Zapopan" required>
                                 </div>
                                 <div class="form-group">
-                                    <label>Estado</label>
-                                    <select id="estado">
-                                        <option value="">Selecciona un estado</option>
-                                        <option>Jalisco</option><option>CDMX</option><option>Nuevo León</option>
-                                        <option>Estado de México</option><option>Querétaro</option><option>Otro</option>
-                                    </select>
+                                    <label for="estado_search">Estado</label>
+                                    <div class="combobox" id="estadoCombo">
+                                        <input type="text" id="estado_search" placeholder="Escribe para buscar..." autocomplete="off" role="combobox" aria-expanded="false" aria-controls="estado_list">
+                                        <input type="hidden" id="estado">
+                                        <ul class="combobox-list" id="estado_list" role="listbox" hidden></ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -166,6 +171,7 @@
 </div>
 
 <script src="../assets/js/api.js"></script>
+<script src="../assets/js/admin-ui.js"></script>
 <script>
 const params = new URLSearchParams(window.location.search);
 const id = params.get('id');
@@ -195,23 +201,140 @@ async function init() {
     actualizarChecksAuto();
 }
 
+/* ---------- Comboboxes con tipeo (notaría y estado) ---------- */
+const RE_DIACRITICOS = new RegExp('[\\u0300-\\u036f]', 'g');
+const normTxt = s => (s ?? '').toString().normalize('NFD').replace(RE_DIACRITICOS, '').toLowerCase().trim();
+const escNota = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const ESTADOS_MX = [
+    'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas',
+    'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Estado de México',
+    'Guanajuato', 'Guerrero', 'Hidalgo', 'Jalisco', 'Michoacán', 'Morelos', 'Nayarit',
+    'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
+    'Sinaloa', 'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
+];
+
+/**
+ * Combobox reutilizable: input con tipeo + lista filtrada + campo oculto con el valor.
+ * opts: { searchEl, hiddenEl, listEl, items:()=>[{value,label}], requireMatch }
+ */
+function crearCombobox(opts) {
+    const { searchEl, hiddenEl, listEl } = opts;
+    const getItems = opts.items;
+    let hi = -1;
+    let visibles = [];
+
+    const filtradas = () => {
+        const q = normTxt(searchEl.value);
+        const all = getItems();
+        return q ? all.filter(it => normTxt(it.label).includes(q)) : all.slice();
+    };
+    const abrir = () => {
+        visibles = filtradas();
+        hi = -1;
+        listEl.innerHTML = visibles.length
+            ? visibles.map((it, i) => `<li role="option" data-i="${i}">${escNota(it.label)}</li>`).join('')
+            : '<li class="vacio">Sin coincidencias</li>';
+        listEl.hidden = false;
+        searchEl.setAttribute('aria-expanded', 'true');
+    };
+    const cerrar = () => { listEl.hidden = true; hi = -1; searchEl.setAttribute('aria-expanded', 'false'); };
+    const marcar = () => {
+        [...listEl.querySelectorAll('li[data-i]')].forEach((li, i) => {
+            li.classList.toggle('activo', i === hi);
+            if (i === hi) li.scrollIntoView({ block: 'nearest' });
+        });
+    };
+    const elegir = (it) => {
+        hiddenEl.value = it.value;
+        searchEl.value = it.label;
+        searchEl.setCustomValidity('');
+        cerrar();
+    };
+    const setPorValor = (val) => {
+        const it = getItems().find(x => String(x.value) === String(val));
+        if (it) { elegir(it); return; }
+        // Valor heredado que no está en la lista: se conserva tal cual.
+        hiddenEl.value = val || '';
+        searchEl.value = val || '';
+    };
+
+    searchEl.addEventListener('focus', abrir);
+    searchEl.addEventListener('input', () => {
+        const exacta = getItems().find(it => normTxt(it.label) === normTxt(searchEl.value));
+        hiddenEl.value = exacta ? exacta.value : (opts.requireMatch ? '' : searchEl.value.trim());
+        searchEl.setCustomValidity('');
+        abrir();
+    });
+    searchEl.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); if (listEl.hidden) abrir(); hi = Math.min(hi + 1, visibles.length - 1); marcar(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); hi = Math.max(hi - 1, 0); marcar(); }
+        else if (e.key === 'Enter') {
+            if (!listEl.hidden && hi >= 0 && visibles[hi]) { e.preventDefault(); elegir(visibles[hi]); }
+            else if (!listEl.hidden && visibles.length === 1) { e.preventDefault(); elegir(visibles[0]); }
+        }
+        else if (e.key === 'Escape') { cerrar(); }
+    });
+    listEl.addEventListener('mousedown', (e) => {
+        const li = e.target.closest('li[data-i]');
+        if (!li) return;
+        e.preventDefault(); // conserva el foco en el input
+        const it = visibles[parseInt(li.dataset.i, 10)];
+        if (it) elegir(it);
+    });
+    searchEl.addEventListener('blur', () => {
+        setTimeout(() => {
+            cerrar();
+            if (opts.requireMatch && !hiddenEl.value && searchEl.value.trim()) {
+                const exacta = getItems().find(it => normTxt(it.label) === normTxt(searchEl.value));
+                if (exacta) elegir(exacta);
+                else searchEl.value = ''; // texto sin coincidencia: se limpia
+            }
+        }, 120);
+    });
+
+    return { setPorValor, elegir };
+}
+
+let notariasData = [];
+
 async function cargarNotarias() {
     const { data } = await Api.listarNotarias();
-    const select = document.getElementById('notaria_id');
-    select.innerHTML = data.map(n => `<option value="${n.id}">${n.nombre}</option>`).join('');
+    notariasData = data;
 }
+
+const comboNotaria = crearCombobox({
+    searchEl: document.getElementById('notaria_search'),
+    hiddenEl: document.getElementById('notaria_id'),
+    listEl: document.getElementById('notaria_list'),
+    items: () => notariasData.map(n => ({ value: n.id, label: n.nombre })),
+    requireMatch: true,
+});
+
+const comboEstado = crearCombobox({
+    searchEl: document.getElementById('estado_search'),
+    hiddenEl: document.getElementById('estado'),
+    listEl: document.getElementById('estado_list'),
+    items: () => ESTADOS_MX.map(s => ({ value: s, label: s })),
+    requireMatch: true,
+});
+
+// Alias usados por el resto del formulario
+const $search = document.getElementById('notaria_search');
+const $hidden = document.getElementById('notaria_id');
+const setNotariaPorId = (id) => comboNotaria.setPorValor(id);
 
 async function cargarExpediente() {
     try {
         const { data: e } = await Api.obtenerExpediente(id);
         document.getElementById('folio').value = e.folio;
-        document.getElementById('notaria_id').value = e.notaria_id;
+        setNotariaPorId(e.notaria_id);
         document.getElementById('nombre_cliente').value = e.nombre_cliente || '';
         document.getElementById('tipo_inmueble').value = e.tipo_inmueble || '';
         document.getElementById('direccion').value = e.direccion || '';
         document.getElementById('codigo_postal').value = e.codigo_postal || '';
         document.getElementById('municipio').value = e.municipio || '';
-        document.getElementById('estado').value = e.estado || '';
+        comboEstado.setPorValor(e.estado || '');
         document.getElementById('valor_referencia').value = e.valor_referencia || '';
         document.getElementById('valor_resultante').value = e.valor_resultante || '';
         document.getElementById('fecha_solicitud_valores').value = e.fecha_solicitud_valores || '';
@@ -264,6 +387,12 @@ function recopilarDatos() {
 
 document.getElementById('btnGuardar').addEventListener('click', async (e) => {
     e.preventDefault();
+
+    if (!$hidden.value) {
+        $search.setCustomValidity('Selecciona una notaría de la lista.');
+    } else {
+        $search.setCustomValidity('');
+    }
     if (!document.getElementById('formExpediente').reportValidity()) return;
 
     const payload = recopilarDatos();

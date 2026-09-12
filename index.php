@@ -14,11 +14,12 @@ if ($usuario) {
 <meta charset="UTF-8">
 <title>CVB | Sistema de Seguimiento de Expedientes</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="assets/logoCVB.png">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body class="login-page">
     <div class="login-box">
-        <div class="login-logo">CV<span>B</span></div>
+        <img src="assets/logoCVB.png" alt="CVB" class="login-logo-img">
         <div class="login-title" style="margin-bottom: 30px;">Selecciona tu portal</div>
         <div style="display:flex; flex-direction:column; gap: 14px;">
             <a href="cliente/login.html" class="btn btn-primary">Portal Cliente (Notarías)</a>

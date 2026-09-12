@@ -4,12 +4,24 @@
 <meta charset="UTF-8">
 <title>CVB | Administración</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="../assets/logoCVB.png">
 <link rel="stylesheet" href="../assets/css/style.css">
+<style>
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; width: auto; }
+    #listaNotarias td { vertical-align: middle; }
+    .nota-acciones { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .nota-inactiva td:first-child { color: var(--text-muted); text-decoration: line-through; }
+    .nota-count, .nota-contacto { font-size: 12px; color: var(--text-muted); }
+    .admin-cols { display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start; }
+    .form-stack .form-group { margin-bottom: 14px; }
+    .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    @media (max-width: 980px) { .admin-cols { grid-template-columns: 1fr; } }
+</style>
 </head>
 <body>
 <div class="app">
     <div class="sidebar">
-        <div class="sidebar-logo">CV<span>B</span></div>
+        <div class="sidebar-logo"><img src="../assets/logoCVB.png" alt="CVB"></div>
         <div class="sidebar-nav">
             <a href="dashboard.html">🏠 Inicio / Dashboard</a>
             <a href="expediente-form.html">📁 Nuevo Expediente</a>
@@ -28,22 +40,65 @@
         </div>
 
         <div class="content">
-            <div class="card card-pad" style="max-width:600px;margin-bottom:20px;">
-                <h3 style="margin-top:0;">Notarías / Solicitantes</h3>
-                <div id="alertBox"></div>
-                <div style="display:flex;gap:10px;margin-bottom:18px;">
-                    <input type="text" id="nuevaNotaria" placeholder="Nombre de la notaría (ej. Lic. Fernanda)" style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--gray-border);">
-                    <button class="btn btn-primary" id="btnAgregar">+ Agregar</button>
-                </div>
-                <table>
-                    <thead><tr><th>Notaría</th></tr></thead>
-                    <tbody id="listaNotarias"><tr><td class="empty-state">Cargando...</td></tr></tbody>
-                </table>
+            <div class="section-head">
+                <h2>Notarías / Solicitantes</h2>
+                <span class="muted" id="resumenNotarias">—</span>
             </div>
-            <p style="color:#6b7280;font-size:13px;max-width:600px;">
-                Nota: para crear el usuario de acceso al portal cliente de una nueva notaría,
-                agrégalo directamente en la tabla <code>usuarios</code> con <code>rol='cliente'</code>
-                y el <code>notaria_id</code> correspondiente (ver <code>database/seed_usuarios.sql</code> como referencia).
+
+            <div id="alertBox"></div>
+
+            <div class="admin-cols">
+                <!-- ---------- Alta ---------- -->
+                <div class="card card-pad">
+                    <h3 style="margin-top:0;">Nueva notaría</h3>
+                    <div class="form-stack">
+                        <div class="form-group">
+                            <label for="c_nombre">Nombre *</label>
+                            <input type="text" id="c_nombre" placeholder="Lic. Fernanda">
+                        </div>
+                        <div class="form-group">
+                            <label for="c_email">Correo</label>
+                            <input type="email" id="c_email" placeholder="contacto@notaria.mx">
+                        </div>
+                        <div class="form-group">
+                            <label for="c_telefono">Teléfono</label>
+                            <input type="text" id="c_telefono" placeholder="55 1234 5678">
+                        </div>
+                        <div class="form-group">
+                            <label for="c_username">Usuario de acceso</label>
+                            <input type="text" id="c_username" placeholder="notaria5" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="c_password">Contraseña</label>
+                            <input type="text" id="c_password" placeholder="mín. 6 caracteres" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <p class="hint">Correo, teléfono, usuario y contraseña son opcionales. Usuario y contraseña van juntos y crean el acceso al Portal Cliente.</p>
+                    <button class="btn btn-primary" id="btnAgregar" style="margin-top:12px;">+ Agregar notaría</button>
+                </div>
+
+                <!-- ---------- Listado ---------- -->
+                <div class="card card-pad">
+                    <div class="data-toolbar">
+                        <h3>Registradas</h3>
+                        <div class="search-box">
+                            <input type="text" id="buscarNotaria" placeholder="Buscar por nombre, correo, usuario...">
+                        </div>
+                    </div>
+                    <table>
+                        <thead><tr><th>Notaría</th><th>Contacto</th><th>Ligados</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+                        <tbody id="listaNotarias"><tr><td colspan="5" class="empty-state">Cargando...</td></tr></tbody>
+                    </table>
+                    <div class="table-footer">
+                        <div id="resumenPag">—</div>
+                        <div class="pagination" id="paginacionNotarias"></div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="color:#6b7280;font-size:13px;max-width:760px;margin-top:16px;">
+                Una notaría con expedientes o usuarios ligados no se puede eliminar; en ese caso
+                <strong>desactívala</strong> (deja de aparecer al crear expedientes, pero se conserva el historial).
             </p>
         </div>
 
@@ -51,43 +106,289 @@
     </div>
 </div>
 
+<!-- ---------- Modal editar notaría ---------- -->
+<div class="modal-overlay" id="notariaModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="notariaModalTitle">
+        <div class="modal-head">
+            <h3 id="notariaModalTitle">Editar notaría</h3>
+            <button class="modal-close" type="button" data-cerrar>&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="modalAlert"></div>
+            <div class="form-group">
+                <label for="e_nombre">Nombre *</label>
+                <input type="text" id="e_nombre">
+            </div>
+            <div class="form-group">
+                <label for="e_email">Correo</label>
+                <input type="email" id="e_email" placeholder="contacto@notaria.mx">
+            </div>
+            <div class="form-group">
+                <label for="e_telefono">Teléfono</label>
+                <input type="text" id="e_telefono" placeholder="55 1234 5678">
+            </div>
+            <div class="form-group">
+                <label for="e_activo">Estado</label>
+                <select id="e_activo">
+                    <option value="1">Activa</option>
+                    <option value="0">Inactiva</option>
+                </select>
+            </div>
+
+            <p class="modal-section-label">Acceso al Portal Cliente</p>
+            <div class="form-group">
+                <label for="e_username">Usuario de acceso</label>
+                <input type="text" id="e_username" autocomplete="off">
+                <p class="hint" id="e_username_hint"></p>
+            </div>
+            <div class="form-group">
+                <label for="e_password">Nueva contraseña</label>
+                <input type="text" id="e_password" placeholder="dejar en blanco para no cambiar" autocomplete="new-password">
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn btn-outline" type="button" data-cerrar>Cancelar</button>
+            <button class="btn btn-primary" type="button" id="e_guardar">Guardar cambios</button>
+        </div>
+    </div>
+</div>
+
 <script src="../assets/js/api.js"></script>
+<script src="../assets/js/admin-ui.js"></script>
 <script>
+const PER_PAGE = 15;
+let notariasCache = [];
+let paginaNot = 1;
+let filtroNot = '';
+let editId = null;
+let tBuscar = null;
+
+const alertBox = document.getElementById('alertBox');
+function ok(msg)  { alertBox.innerHTML = `<div class="alert alert-success">${esc(msg)}</div>`; }
+function err(msg) { alertBox.innerHTML = `<div class="alert alert-error">${esc(msg)}</div>`; }
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+const RE_DIA = new RegExp('[\\u0300-\\u036f]', 'g');
+const norm = s => (s ?? '').toString().normalize('NFD').replace(RE_DIA, '').toLowerCase().trim();
+
 async function init() {
     try {
         const sesion = await Api.session();
-        if (!sesion.autenticado || sesion.usuario.rol !== 'admin') {
-            window.location.href = 'login.html';
-            return;
-        }
+        if (!sesion.autenticado || sesion.usuario.rol !== 'admin') { window.location.href = 'login.html'; return; }
         document.getElementById('nombreUsuario').textContent = sesion.usuario.nombre;
-    } catch (e) {
-        window.location.href = 'login.html';
-        return;
-    }
-    cargarNotarias();
+    } catch (e) { window.location.href = 'login.html'; return; }
+    await cargarNotarias();
 }
 
 async function cargarNotarias() {
-    const { data } = await Api.listarNotarias();
-    document.getElementById('listaNotarias').innerHTML = data.map(n => `<tr><td>${n.nombre}</td></tr>`).join('');
+    try {
+        const { data } = await Api.listarNotariasAdmin();
+        notariasCache = data;
+        render();
+    } catch (e) {
+        document.getElementById('listaNotarias').innerHTML =
+            '<tr><td colspan="5" class="empty-state">No se pudieron cargar las notarías.</td></tr>';
+    }
 }
 
+function notariasFiltradas() {
+    if (!filtroNot) return notariasCache;
+    const q = norm(filtroNot);
+    return notariasCache.filter(n =>
+        [n.nombre, n.email, n.telefono, n.username].some(v => norm(v).includes(q)));
+}
+
+function render() {
+    const tbody = document.getElementById('listaNotarias');
+    const items = notariasFiltradas();
+    const totalPag = Math.max(1, Math.ceil(items.length / PER_PAGE));
+    if (paginaNot > totalPag) paginaNot = totalPag;
+    const slice = items.slice((paginaNot - 1) * PER_PAGE, paginaNot * PER_PAGE);
+
+    document.getElementById('resumenNotarias').textContent =
+        `${notariasCache.length} en total · ${notariasCache.filter(n => n.activo).length} activas`;
+
+    if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${filtroNot ? 'Sin coincidencias.' : 'Sin notarías. Agrega la primera.'}</td></tr>`;
+        document.getElementById('resumenPag').textContent = 'Mostrando 0 de 0';
+        document.getElementById('paginacionNotarias').innerHTML = '';
+        return;
+    }
+
+    tbody.innerHTML = slice.map(n => {
+        const ligados = [];
+        if (n.n_expedientes) ligados.push(`${n.n_expedientes} exp.`);
+        if (n.n_usuarios)    ligados.push(`${n.n_usuarios} usr.`);
+        const contacto = [n.email, n.telefono].filter(Boolean).map(esc).join('<br>') || '—';
+        const estado = n.activo
+            ? '<span class="badge badge-entregado">Activa</span>'
+            : '<span class="badge badge-default">Inactiva</span>';
+        const toggle = n.activo
+            ? `<button class="btn btn-outline btn-sm" data-accion="desactivar" data-id="${n.id}">Desactivar</button>`
+            : `<button class="btn btn-outline btn-sm" data-accion="activar" data-id="${n.id}">Activar</button>`;
+        return `<tr class="${n.activo ? '' : 'nota-inactiva'}">
+            <td>${esc(n.nombre)}${n.username ? `<br><span class="nota-count">acceso: ${esc(n.username)}</span>` : ''}</td>
+            <td class="nota-contacto">${contacto}</td>
+            <td class="nota-count">${ligados.length ? ligados.join(' · ') : '—'}</td>
+            <td>${estado}</td>
+            <td>
+                <div class="nota-acciones">
+                    <button class="btn btn-outline btn-sm" data-accion="editar" data-id="${n.id}">Editar</button>
+                    ${toggle}
+                    <button class="btn btn-danger-outline btn-sm" data-accion="eliminar" data-id="${n.id}">Eliminar</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const desde = (paginaNot - 1) * PER_PAGE + 1;
+    const hasta = Math.min(paginaNot * PER_PAGE, items.length);
+    document.getElementById('resumenPag').textContent = `Mostrando ${desde}–${hasta} de ${items.length}`;
+
+    let ph = `<button ${paginaNot <= 1 ? 'disabled' : ''} data-pag="${paginaNot - 1}">‹</button>`;
+    for (let i = 1; i <= totalPag; i++) {
+        if (i === 1 || i === totalPag || Math.abs(i - paginaNot) <= 1) {
+            ph += `<button class="${i === paginaNot ? 'active' : ''}" data-pag="${i}">${i}</button>`;
+        } else if (Math.abs(i - paginaNot) === 2) {
+            ph += `<span>…</span>`;
+        }
+    }
+    ph += `<button ${paginaNot >= totalPag ? 'disabled' : ''} data-pag="${paginaNot + 1}">›</button>`;
+    document.getElementById('paginacionNotarias').innerHTML = ph;
+}
+
+document.getElementById('paginacionNotarias').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-pag]');
+    if (!b || b.disabled) return;
+    paginaNot = parseInt(b.dataset.pag, 10);
+    render();
+});
+
+document.getElementById('buscarNotaria').addEventListener('input', (e) => {
+    clearTimeout(tBuscar);
+    tBuscar = setTimeout(() => { filtroNot = e.target.value.trim(); paginaNot = 1; render(); }, 250);
+});
+
+// ---------- Alta ----------
 document.getElementById('btnAgregar').addEventListener('click', async () => {
-    const input = document.getElementById('nuevaNotaria');
-    const nombre = input.value.trim();
-    if (!nombre) return;
+    const payload = {
+        nombre:   document.getElementById('c_nombre').value.trim(),
+        email:    document.getElementById('c_email').value.trim(),
+        telefono: document.getElementById('c_telefono').value.trim(),
+        username: document.getElementById('c_username').value.trim(),
+        password: document.getElementById('c_password').value,
+    };
+    if (!payload.nombre) { err('El nombre es obligatorio.'); return; }
     try {
-        await fetch('../api/notarias.php', {
-            method: 'POST', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre }),
-        });
-        input.value = '';
-        cargarNotarias();
-        document.getElementById('alertBox').innerHTML = '<div class="alert alert-success">Notaría agregada.</div>';
+        await Api.crearNotaria(payload);
+        ['c_nombre', 'c_email', 'c_telefono', 'c_username', 'c_password'].forEach(id => document.getElementById(id).value = '');
+        await cargarNotarias();
+        ok('Notaría agregada.');
     } catch (e) {
-        document.getElementById('alertBox').innerHTML = '<div class="alert alert-error">No se pudo agregar.</div>';
+        err(e && e.error ? e.error : 'No se pudo agregar.');
+    }
+});
+document.getElementById('c_nombre').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnAgregar').click(); });
+
+// ---------- Acciones de fila ----------
+document.getElementById('listaNotarias').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-accion]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id, 10);
+    const accion = btn.dataset.accion;
+
+    if (accion === 'editar') { abrirModal(id); return; }
+
+    if (accion === 'activar' || accion === 'desactivar') {
+        try {
+            await Api.actualizarNotaria(id, { activo: accion === 'activar' ? 1 : 0 });
+            await cargarNotarias();
+            ok(accion === 'activar' ? 'Notaría activada.' : 'Notaría desactivada.');
+        } catch (e2) { err(e2 && e2.error ? e2.error : 'No se pudo actualizar.'); }
+        return;
+    }
+
+    if (accion === 'eliminar') {
+        if (!confirm('¿Eliminar esta notaría de forma permanente?')) return;
+        try {
+            await Api.eliminarNotaria(id);
+            await cargarNotarias();
+            ok('Notaría eliminada.');
+        } catch (e2) {
+            if (e2 && (e2.expedientes || e2.usuarios)) {
+                const partes = [];
+                if (e2.expedientes) partes.push(`${e2.expedientes} expediente(s)`);
+                if (e2.usuarios)    partes.push(`${e2.usuarios} usuario(s)`);
+                if (confirm(`No se puede eliminar: tiene ${partes.join(' y ')} ligado(s).\n\n¿Desactivarla en su lugar?`)) {
+                    try {
+                        await Api.actualizarNotaria(id, { activo: 0 });
+                        await cargarNotarias();
+                        ok('Notaría desactivada.');
+                    } catch (e3) { err(e3 && e3.error ? e3.error : 'No se pudo desactivar.'); }
+                }
+            } else {
+                err(e2 && e2.error ? e2.error : 'No se pudo eliminar.');
+            }
+        }
+    }
+});
+
+// ---------- Modal editar ----------
+const modal = document.getElementById('notariaModal');
+function modalAlert(msg, tipo) {
+    document.getElementById('modalAlert').innerHTML = msg ? `<div class="alert alert-${tipo}">${esc(msg)}</div>` : '';
+}
+function cerrarModal() { modal.hidden = true; editId = null; }
+
+function abrirModal(id) {
+    const n = notariasCache.find(x => x.id === id);
+    if (!n) return;
+    editId = id;
+    modalAlert('');
+    document.getElementById('notariaModalTitle').textContent = `Editar: ${n.nombre}`;
+    document.getElementById('e_nombre').value = n.nombre || '';
+    document.getElementById('e_email').value = n.email || '';
+    document.getElementById('e_telefono').value = n.telefono || '';
+    document.getElementById('e_activo').value = n.activo ? '1' : '0';
+    document.getElementById('e_username').value = n.username || '';
+    document.getElementById('e_password').value = '';
+    document.getElementById('e_username_hint').textContent = n.username
+        ? 'Cámbialo solo si necesitas otro usuario de acceso.'
+        : 'Sin acceso al portal. Escribe usuario + contraseña para crearlo.';
+    modal.hidden = false;
+}
+
+modal.querySelectorAll('[data-cerrar]').forEach(el => el.addEventListener('click', cerrarModal));
+modal.addEventListener('click', (e) => { if (e.target === modal) cerrarModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) cerrarModal(); });
+
+document.getElementById('e_guardar').addEventListener('click', async () => {
+    if (!editId) return;
+    const original = notariasCache.find(x => x.id === editId) || {};
+    const payload = {
+        nombre:   document.getElementById('e_nombre').value.trim(),
+        email:    document.getElementById('e_email').value.trim(),
+        telefono: document.getElementById('e_telefono').value.trim(),
+        activo:   parseInt(document.getElementById('e_activo').value, 10),
+    };
+    const username = document.getElementById('e_username').value.trim();
+    const password = document.getElementById('e_password').value;
+    if (!payload.nombre) { modalAlert('El nombre es obligatorio.', 'error'); return; }
+    if (username && username !== (original.username || '')) payload.username = username;
+    if (password) payload.password = password;
+
+    const btn = document.getElementById('e_guardar');
+    btn.disabled = true;
+    try {
+        await Api.actualizarNotaria(editId, payload);
+        cerrarModal();
+        await cargarNotarias();
+        ok('Notaría actualizada.');
+    } catch (e) {
+        modalAlert(e && e.error ? e.error : 'No se pudo actualizar.', 'error');
+    } finally {
+        btn.disabled = false;
     }
 });
 

@@ -1,0 +1,43 @@
+services:
+  app:
+    build: .
+    container_name: cvb_app
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+    environment:
+      DB_HOST: db
+      DB_NAME: cvb_sistema
+      DB_USER: cvb
+      DB_PASS: cvb
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    container_name: cvb_db
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cvb_sistema
+      MYSQL_USER: cvb
+      MYSQL_PASSWORD: cvb
+    volumes:
+      - db_data:/var/lib/mysql
+      # Los .sql se ejecutan en orden alfabetico solo la primera vez
+      # (cuando el volumen db_data esta vacio):
+      #   schema.sql -> seed_expedientes.sql -> seed_usuarios.sql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed_expedientes.sql:/docker-entrypoint-initdb.d/02_seed_expedientes.sql:ro
+      - ./database/seed_usuarios.sql:/docker-entrypoint-initdb.d/03_seed_usuarios.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  db_data:

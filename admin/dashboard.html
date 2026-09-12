@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <title>CVB | Admin - Listado de Expedientes</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="../assets/logoCVB.png">
 <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
 <div class="app">
     <div class="sidebar">
-        <div class="sidebar-logo">CV<span>B</span></div>
+        <div class="sidebar-logo"><img src="../assets/logoCVB.png" alt="CVB"></div>
         <div class="sidebar-nav">
             <a href="dashboard.html" class="active">🏠 Inicio / Dashboard</a>
             <a href="expediente-form.html">📁 Nuevo Expediente</a>
@@ -21,9 +22,12 @@
     <div class="main">
         <div class="topbar">
             <h1>Listado de Expedientes</h1>
-            <div class="topbar-user">
-                <span id="nombreUsuario">Cargando...</span>
-                <div class="avatar">👤</div>
+            <div style="display:flex;align-items:center;gap:16px;">
+                <a href="expediente-form.html" class="topbar-cta">+ Nuevo expediente</a>
+                <div class="topbar-user">
+                    <span id="nombreUsuario">Cargando...</span>
+                    <div class="avatar">👤</div>
+                </div>
             </div>
         </div>
 
@@ -50,7 +54,6 @@
                             <option value="Pagado">Pagado</option>
                             <option value="Detenido">Detenido</option>
                         </select>
-                        <a href="expediente-form.html" class="btn btn-primary" style="white-space:nowrap;">+ Nuevo</a>
                     </div>
                 </div>
                 <table>
@@ -90,6 +93,7 @@
 </div>
 
 <script src="../assets/js/api.js"></script>
+<script src="../assets/js/admin-ui.js"></script>
 <script>
 let paginaActual = 1;
 const PER_PAGE = 10;
@@ -105,40 +109,52 @@ const COLORS = {
 };
 
 async function init() {
+    // Pinta de inmediato lo último visto (si existe) y valida sesión en paralelo.
+    const nombreCache = ApiCache.get('user_nombre');
+    if (nombreCache) document.getElementById('nombreUsuario').textContent = nombreCache;
+
+    const sesionP = Api.session();
+    cargarStats();
+    cargarExpedientes();
+
     try {
-        const sesion = await Api.session();
+        const sesion = await sesionP;
         if (!sesion.autenticado || sesion.usuario.rol !== 'admin') {
             window.location.href = 'login.html';
             return;
         }
         document.getElementById('nombreUsuario').textContent = sesion.usuario.nombre;
+        ApiCache.set('user_nombre', sesion.usuario.nombre);
     } catch (e) {
         window.location.href = 'login.html';
-        return;
     }
-    cargarStats();
-    cargarExpedientes();
+}
+
+function pintarStats(s) {
+    const cards = document.querySelectorAll('#kpiGrid .kpi-card .value');
+    cards[0].textContent = s.total;
+    cards[1].textContent = s.entregados;
+    cards[2].textContent = s.cotizacion;
+    cards[3].textContent = s.catastro;
+    cards[4].textContent = s.desarrollo;
+    cards[5].textContent = s.detenidos;
+
+    const maxDias = Math.max(s.dias_promedio.etapa1, s.dias_promedio.etapa2, s.dias_promedio.etapa3, 1);
+    document.getElementById('barsDias').innerHTML = `
+        ${barRow('Etapa 1 - Cvb→Notaría', s.dias_promedio.etapa1, maxDias)}
+        ${barRow('Etapa 2 - Desarrollo Cvb → Catastro', s.dias_promedio.etapa2, maxDias)}
+        ${barRow('Etapa 3 - Catastro → Notaría', s.dias_promedio.etapa3, maxDias)}
+    `;
+    renderPie(s.distribucion_estatus);
 }
 
 async function cargarStats() {
+    const cached = ApiCache.get('dash_stats');
+    if (cached) pintarStats(cached);
     try {
         const s = await Api.dashboardStats();
-        const cards = document.querySelectorAll('#kpiGrid .kpi-card .value');
-        cards[0].textContent = s.total;
-        cards[1].textContent = s.entregados;
-        cards[2].textContent = s.cotizacion;
-        cards[3].textContent = s.catastro;
-        cards[4].textContent = s.desarrollo;
-        cards[5].textContent = s.detenidos;
-
-        const maxDias = Math.max(s.dias_promedio.etapa1, s.dias_promedio.etapa2, s.dias_promedio.etapa3, 1);
-        document.getElementById('barsDias').innerHTML = `
-            ${barRow('Etapa 1 - Cvb→Notaría', s.dias_promedio.etapa1, maxDias)}
-            ${barRow('Etapa 2 - Desarrollo Cvb → Catastro', s.dias_promedio.etapa2, maxDias)}
-            ${barRow('Etapa 3 - Catastro → Notaría', s.dias_promedio.etapa3, maxDias)}
-        `;
-
-        renderPie(s.distribucion_estatus);
+        ApiCache.set('dash_stats', s);
+        pintarStats(s);
     } catch (e) { /* silencioso */ }
 }
 
@@ -171,18 +187,36 @@ function renderPie(dist) {
     `).join('');
 }
 
+function esVistaDefault() {
+    return paginaActual === 1
+        && !document.getElementById('buscar').value.trim()
+        && !document.getElementById('filtroEstatus').value;
+}
+
 async function cargarExpedientes() {
     const q = document.getElementById('buscar').value.trim();
     const estatus = document.getElementById('filtroEstatus').value;
     const tbody = document.getElementById('tablaBody');
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Cargando...</td></tr>';
+
+    const cacheable = esVistaDefault();
+    let pintadoDesdeCache = false;
+    if (cacheable) {
+        const c = ApiCache.get('exp_p1');
+        if (c) { renderTabla(c.data); renderPaginacion(c.meta); pintadoDesdeCache = true; }
+    }
+    if (!pintadoDesdeCache) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Cargando...</td></tr>';
+    }
 
     try {
         const { data, meta } = await Api.listarExpedientes({ page: paginaActual, per_page: PER_PAGE, q, estatus });
+        if (cacheable) ApiCache.set('exp_p1', { data, meta });
         renderTabla(data);
         renderPaginacion(meta);
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${e.error || 'Error al cargar expedientes.'}</td></tr>`;
+        if (!pintadoDesdeCache) {
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${e.error || 'Error al cargar expedientes.'}</td></tr>`;
+        }
     }
 }
 

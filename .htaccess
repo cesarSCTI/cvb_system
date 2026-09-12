@@ -1,0 +1,20 @@
+# CVB — Endurecimiento básico para hosting compartido (cPanel).
+# No afecta el entorno local con Docker (ese Apache no lee .htaccess).
+
+# No listar el contenido de carpetas que no tengan index.
+Options -Indexes
+
+# Bloquea el acceso directo por URL a archivos que nunca deben descargarse:
+# .sql (esquema/seed con hashes de contraseñas), .git*, .env, logs, backups.
+<FilesMatch "\.(sql|md|log|env|bak|gitignore|gitattributes)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Bloquea /.git si el repo se subió por accidente junto con el proyecto.
+RedirectMatch 404 ^/\.git(/|$)

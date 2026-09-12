@@ -1,8 +1,20 @@
 /**
  * Wrapper simple sobre fetch() para hablar con la API PHP.
  * Todas las rutas son relativas a /api/.
+ *
+ * API_BASE se calcula a partir de la URL real de este script (no se asume
+ * que el proyecto vive en la raíz del dominio), para que funcione igual
+ * si se instala en midominio.com/, en un subdominio, o en una subcarpeta
+ * tipo midominio.com/cvb/ (caso típico de cPanel).
  */
-const API_BASE = '/api';
+const API_BASE = (() => {
+    try {
+        // api.js vive en <raíz-app>/assets/js/api.js -> subir 2 niveles = <raíz-app>/api
+        return new URL('../../api', document.currentScript.src).pathname.replace(/\/$/, '');
+    } catch (e) {
+        return '/api';
+    }
+})();
 
 /**
  * Caché ligero en sessionStorage para pintar al instante datos ya vistos
